@@ -26,7 +26,9 @@ services:
       APPSMITH_CUSTOM_DOMAIN: ${APPSMITH_CUSTOM_DOMAIN:-https://appsmith.loadingtechnology.app}
 
       # Disable public signup (admin-only access)
-      APPSMITH_SIGNUP_DISABLED: ${APPSMITH_SIGNUP_DISABLED:-true}
+      # NOTE: Must be false for initial setup. First user matching APPSMITH_ADMIN_EMAILS
+      # becomes superadmin. Set to true after first admin account is created.
+      APPSMITH_SIGNUP_DISABLED: ${APPSMITH_SIGNUP_DISABLED:-false}
 
       # Admin email(s) who receive superuser privileges on first login
       APPSMITH_ADMIN_EMAILS: ${APPSMITH_ADMIN_EMAILS}
