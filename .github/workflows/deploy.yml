@@ -41,9 +41,9 @@ jobs:
           scp -i ~/.ssh/id_rsa -o IdentitiesOnly=yes /tmp/appsmith.env root@157.245.148.63:/opt/loading-appsmith/.env
           ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
             cd /opt/loading-appsmith
-            docker compose down 2>/dev/null || true
-            docker compose up -d
-            docker compose ps
+            docker-compose down 2>/dev/null || true
+            docker-compose up -d
+            docker-compose ps
           ENDSSH
 
       - name: Verify deployment
