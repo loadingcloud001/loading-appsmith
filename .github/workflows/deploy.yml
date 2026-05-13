@@ -30,7 +30,7 @@ jobs:
           APPSMITH_ENCRYPTION_SALT: ${{ secrets.APPSMITH_ENCRYPTION_SALT }}
         run: |
           ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 "mkdir -p /opt/loading-appsmith"
-          cat > /tmp/appsmith.env << 'ENVBEOF'
+          cat > /tmp/appsmith.env << ENVBEOF
           APPSMITH_CUSTOM_DOMAIN=https://appsmith.loadingtechnology.app
           APPSMITH_SIGNUP_DISABLED=false
           APPSMITH_ADMIN_EMAILS=${APPSMITH_ADMIN_EMAILS}
