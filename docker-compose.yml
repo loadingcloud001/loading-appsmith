@@ -1,0 +1,68 @@
+# =============================================================================
+# Appsmith CE — Single-Container Deployment
+#
+# Appsmith bundles an internal stack:
+#   - Nginx (frontend, port 80)
+#   - Backend API server
+#   - Embedded MongoDB (data on named volume)
+#   - Embedded Redis
+#
+# Nginx reverse proxy routes to this container via:
+#   appsmith.loadingtechnology.app → loading-appsmith:80
+# =============================================================================
+
+services:
+  appsmith:
+    restart: unless-stopped
+    image: appsmith/appsmith-ce:latest
+    container_name: loading-appsmith
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      # Custom domain for OAuth redirects and generated URLs
+      APPSMITH_CUSTOM_DOMAIN: ${APPSMITH_CUSTOM_DOMAIN:-https://appsmith.loadingtechnology.app}
+
+      # Disable public signup (admin-only access)
+      APPSMITH_SIGNUP_DISABLED: ${APPSMITH_SIGNUP_DISABLED:-true}
+
+      # Admin email(s) who receive superuser privileges on first login
+      APPSMITH_ADMIN_EMAILS: ${APPSMITH_ADMIN_EMAILS}
+
+      # Encryption keys — generate with: openssl rand -hex 16
+      APPSMITH_ENCRYPTION_PASSWORD: ${APPSMITH_ENCRYPTION_PASSWORD}
+      APPSMITH_ENCRYPTION_SALT: ${APPSMITH_ENCRYPTION_SALT}
+
+    volumes:
+      # Persist all Appsmith data: MongoDB, configs, plugins, certificates
+      - appsmith_stacks:/appsmith-stacks
+
+    networks:
+      nginx-network:
+        aliases:
+          - appsmith
+          - loading-appsmith
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  appsmith_stacks:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  nginx-network:
+    name: nginx-network
+    external: true

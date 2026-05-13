@@ -1,0 +1,59 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H 157.245.148.63 >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to droplet
+        env:
+          APPSMITH_ADMIN_EMAILS: ${{ secrets.APPSMITH_ADMIN_EMAILS }}
+          APPSMITH_ENCRYPTION_PASSWORD: ${{ secrets.APPSMITH_ENCRYPTION_PASSWORD }}
+          APPSMITH_ENCRYPTION_SALT: ${{ secrets.APPSMITH_ENCRYPTION_SALT }}
+        run: |
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 "mkdir -p /opt/loading-appsmith"
+          cat > /tmp/appsmith.env << 'ENVBEOF'
+          APPSMITH_CUSTOM_DOMAIN=https://appsmith.loadingtechnology.app
+          APPSMITH_SIGNUP_DISABLED=true
+          APPSMITH_ADMIN_EMAILS=${APPSMITH_ADMIN_EMAILS}
+          APPSMITH_ENCRYPTION_PASSWORD=${APPSMITH_ENCRYPTION_PASSWORD}
+          APPSMITH_ENCRYPTION_SALT=${APPSMITH_ENCRYPTION_SALT}
+          ENVBEOF
+          scp -i ~/.ssh/id_rsa -o IdentitiesOnly=yes docker-compose.yml root@157.245.148.63:/opt/loading-appsmith/
+          scp -i ~/.ssh/id_rsa -o IdentitiesOnly=yes /tmp/appsmith.env root@157.245.148.63:/opt/loading-appsmith/.env
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
+            cd /opt/loading-appsmith
+            docker compose down 2>/dev/null || true
+            docker compose up -d
+            docker compose ps
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 "docker ps --filter name=loading-appsmith"
+
+      - name: Check container health
+        run: |
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
+            sleep 10
+            docker ps --filter name=loading-appsmith
+            docker inspect loading-appsmith --format='{{.State.Health.Status}}' 2>/dev/null || echo "No health check"
+          ENDSSH
