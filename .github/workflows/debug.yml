@@ -1,0 +1,78 @@
+# Temporary diagnostic workflow to inspect Appsmith container
+name: Debug Appsmith
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H 157.245.148.63 >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Check Appsmith container status
+        run: |
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
+            echo "=== Container status ==="
+            docker ps --filter name=loading-appsmith --format '{{.ID}} {{.Names}} {{.Status}} {{.Image}}'
+            echo ""
+            echo "=== Container inspect (health) ==="
+            docker inspect loading-appsmith --format='Health: {{.State.Health.Status}} | Started: {{.State.StartedAt}} | ExitCode: {{.State.ExitCode}}'
+            echo ""
+            echo "=== Disk usage ==="
+            df -h /opt/loading-appsmith 2>/dev/null || df -h /
+            echo ""
+            echo "=== Memory ==="
+            free -h
+            echo ""
+            echo "=== Container logs (last 30 lines, errors) ==="
+            docker logs --tail 30 loading-appsmith 2>&1 | grep -iE "error|exception|fail|timeout|mongo|database|pool|refused|reject" || echo "(no matching errors in recent logs)"
+            echo ""
+            echo "=== Container logs (last 50 lines, all) ==="
+            docker logs --tail 50 loading-appsmith 2>&1
+          ENDSSH
+
+      - name: Check Appsmith internal MongoDB
+        run: |
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
+            echo "=== Appsmith internal processes ==="
+            docker exec loading-appsmith ps aux 2>/dev/null || echo "ps not available"
+            echo ""
+            echo "=== Check MongoDB inside container ==="
+            docker exec loading-appsmith sh -c 'echo "db.runCommand({ping:1})" | mongosh --quiet 2>&1' 2>/dev/null || echo "mongosh not available"
+            echo ""
+            echo "=== Check if MongoDB port is listening ==="
+            docker exec loading-appsmith sh -c 'netstat -tlnp 2>/dev/null || ss -tlnp 2>/dev/null' | head -20
+            echo ""
+            echo "=== Check Appsmith backend health ==="
+            docker exec loading-appsmith curl -s http://localhost:8080/health 2>&1 || echo "backend health check failed"
+            echo ""
+            echo "=== Check Appsmith API ==="
+            docker exec loading-appsmith curl -s -w '\nHTTP %{http_code}' http://localhost:8080/api/v1/health 2>&1 || echo "API health check failed"
+          ENDSSH
+
+      - name: Check volume and data persistence
+        run: |
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
+            echo "=== Docker volumes ==="
+            docker volume ls | grep appsmith
+            echo ""
+            echo "=== Volume inspect ==="
+            docker volume inspect loading-appsmith_appsmith_stacks 2>&1 | head -30
+            echo ""
+            echo "=== Data directory size ==="
+            docker exec loading-appsmith du -sh /appsmith-stacks/ 2>/dev/null
+            echo ""
+            echo "=== MongoDB data files ==="
+            docker exec loading-appsmith ls -la /appsmith-stacks/data/mongodb/ 2>/dev/null || echo "mongodb data dir not found"
+            echo ""
+            echo "=== Check MongoDB data size ==="
+            docker exec loading-appsmith du -sh /appsmith-stacks/data/mongodb/ 2>/dev/null || echo "no data dir"
+          ENDSSH
