@@ -41,7 +41,9 @@ jobs:
           scp -i ~/.ssh/id_rsa -o IdentitiesOnly=yes /tmp/appsmith.env root@157.245.148.63:/opt/loading-appsmith/.env
           ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@157.245.148.63 << 'ENDSSH'
             cd /opt/loading-appsmith
-            docker-compose down 2>/dev/null || true
+            docker-compose down -v 2>/dev/null || true
+            # Fresh start: remove named volume to reset signup_disabled in MongoDB
+            docker volume rm loading-appsmith_appsmith_stacks 2>/dev/null || true
             docker-compose up -d
             docker-compose ps
           ENDSSH
